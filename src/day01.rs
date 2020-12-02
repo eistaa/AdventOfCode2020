@@ -6,9 +6,7 @@ fn parse(filename: &Path) -> Result<Vec<i32>, String> {
     let mut numbers: Result<Vec<i32>, _> = fs::read_to_string(filename)
         .map_err(|err| format!("Failed to read data for day 01: {}", err))?
         .split_ascii_whitespace()
-        .map(|token| {
-            i32::from_str(token).map_err(|err| format!("Invalid data in file for day 01: {}", err))
-        })
+        .map(|token| i32::from_str(token).map_err(|err| format!("Invalid data in file for day 01: {}", err)))
         .collect();
 
     if let Ok(nums) = &mut numbers {
@@ -35,10 +33,7 @@ pub fn part01(filename: &Path) -> Result<String, String> {
         }
     }
 
-    Err(format!(
-        "{:?}",
-        "Failed to find solution for day 01, part 1..."
-    ))
+    Err(format!("{:?}", "Failed to find solution for day 01, part 1..."))
 }
 
 pub fn part02(filename: &Path) -> Result<String, String> {
@@ -71,8 +66,5 @@ pub fn part02(filename: &Path) -> Result<String, String> {
         }
     }
 
-    Err(format!(
-        "{:?}",
-        "Failed to find solution for day 01, part 2..."
-    ))
+    Err(format!("{:?}", "Failed to find solution for day 01, part 2..."))
 }
