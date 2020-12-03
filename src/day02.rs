@@ -16,7 +16,7 @@ fn parse(filename: &Path) -> Result<Vec<PasswordData>, String> {
     let pattern = Regex::new(r"^(\d+)-(\d+)\s+([a-z]):\s+([a-z]+)$").unwrap();
 
     fs::read_to_string(filename)
-        .map_err(|err| format!("Failed to read data for day 01: {}", err))?
+        .map_err(|err| format!("Failed to read data for day 02: {}", err))?
         .split("\n")
         .map(|line| {
             let captures = pattern.captures(line).ok_or("Failed to parse line in day 2 data")?;
