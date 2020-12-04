@@ -1,6 +1,7 @@
 mod day01;
 mod day02;
 mod day03;
+mod day04;
 
 use std::convert::{TryFrom, TryInto};
 use std::env;
@@ -56,6 +57,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             Day(3) => {
                 println!("03:01 => {}", crate::day03::part01(&filename)?);
                 println!("03:02 => {}", crate::day03::part02(&filename)?);
+            }
+            Day(4) => {
+                println!("04:01 => {}", crate::day04::part01(&filename)?);
+                println!("04:02 => {}", crate::day04::part02(&filename)?);
             }
             _ => println!("No solution for day {}", i32::from(&day)),
         }

@@ -1,6 +1,6 @@
+use std::convert::TryFrom;
 use std::fs;
 use std::path::Path;
-use std::convert::TryFrom;
 
 const OPEN: char = '.';
 const TREE: char = '#';
@@ -18,7 +18,7 @@ impl TryFrom<char> for Feature {
         match c {
             OPEN => Ok(Feature::Open),
             TREE => Ok(Feature::Tree),
-            _ => Err(format!("Unknown feature spec: {}", c))
+            _ => Err(format!("Unknown feature spec: {}", c)),
         }
     }
 }
