@@ -4,10 +4,15 @@ use std::iter::FromIterator;
 use std::path::Path;
 
 fn parse_seat_code(code: &str) -> i32 {
-    let row = i32::from_str_radix(&code[..7].replace("F", "0").replace("B", "1"), 2).unwrap();
-    let col = i32::from_str_radix(&code[7..].replace("L", "0").replace("R", "1"), 2).unwrap();
-
-    row * 8 + col
+    i32::from_str_radix(
+        &code
+            .replace("F", "0")
+            .replace("L", "0")
+            .replace("B", "1")
+            .replace("R", "1"),
+        2,
+    )
+    .unwrap()
 }
 
 pub fn part01(filename: &Path) -> Result<String, String> {
@@ -39,6 +44,6 @@ pub fn part02(filename: &Path) -> Result<String, String> {
     } else if possible_seats.is_empty() {
         Err("There are no possible seats".to_string())
     } else {
-        Err("There were multiple possible seats".to_string())
+        Err("There are multiple possible seats".to_string())
     }
 }
