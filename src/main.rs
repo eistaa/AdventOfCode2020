@@ -2,6 +2,7 @@ mod day01;
 mod day02;
 mod day03;
 mod day04;
+mod day05;
 
 use std::convert::{TryFrom, TryInto};
 use std::env;
@@ -40,7 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 2 {
-        Err("usage: aoc2020 DAY-NUM INPUT-FILENAME".to_string())?
+        Err("usage: aoc2020 DAY-NUM".to_string())?
     } else {
         let day: Day = i32::from_str(&args[1])?.try_into()?;
         let filename = generate_filename(&day);
@@ -61,6 +62,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             Day(4) => {
                 println!("04:01 => {}", crate::day04::part01(&filename)?);
                 println!("04:02 => {}", crate::day04::part02(&filename)?);
+            }
+            Day(5) => {
+                println!("05:01 => {}", crate::day05::part01(&filename)?);
+                println!("05:02 => {}", crate::day05::part02(&filename)?);
             }
             _ => println!("No solution for day {}", i32::from(&day)),
         }

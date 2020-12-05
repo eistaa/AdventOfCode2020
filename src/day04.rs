@@ -99,7 +99,7 @@ fn parse(filename: &Path) -> Result<Vec<Passport>, String> {
                     "ecl" => passport.ecl = Some(value.to_string()),
                     "pid" => passport.pid = Some(value.to_string()),
                     "cid" => passport.cid = Some(value.to_string()),
-                    _ => unreachable!(),  // don't handle since the data doesn't include extra fields
+                    _ => unreachable!(), // don't handle since the data doesn't include extra fields
                 }
             }
 
