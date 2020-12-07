@@ -1,5 +1,4 @@
 use regex::Regex;
-use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::fs;
@@ -49,38 +48,26 @@ fn reverse(graph: &Graph) -> Graph {
         }
     }
 
+    for (node, _) in graph.iter() {
+        reversed.entry(node.to_owned()).or_insert(Vec::new());
+    }
+
     reversed
 }
 
-fn dfs(bag: &str, graph: &Graph) -> usize {
-    if !graph.contains_key(bag) {
-        return 0;
-    }
-
-    let mut visited = HashSet::with_capacity(graph.len());
-    let mut stack: Vec<&str> = graph.get(bag).unwrap().iter().map(|(next, _)| next.as_str()).collect();
-
-    while !stack.is_empty() {
-        let frame = stack.pop().unwrap();
-
-        if visited.contains(frame) {
-            continue;
-        } else if !graph.contains_key(frame) {
-            visited.insert(frame);
-            continue;
-        } else {
-            let edges = graph.get(frame).unwrap();
-            stack.extend(edges.iter().map(|(next, _)| next.as_str()));
-            visited.insert(frame);
-        }
-    }
-
-    visited.len()
+#[derive(Clone, Copy, Debug, Default)]
+struct DfsResult {
+    visited: usize,
+    cumulative_weight: i32,
 }
 
-fn cumulative_weight_sum(bag: &str, graph: &Graph) -> i32 {
-    let mut weight_sum = 0;
+fn dfs(bag: &str, graph: &Graph) -> DfsResult {
+    if !graph.contains_key(bag) {
+        return DfsResult::default();
+    }
 
+    let mut cumulative_weights = 0;
+    let mut visited = HashSet::with_capacity(graph.len());
     let mut stack: Vec<(&str, i32)> = graph
         .get(bag)
         .unwrap()
@@ -93,31 +80,34 @@ fn cumulative_weight_sum(bag: &str, graph: &Graph) -> i32 {
 
         let edges = graph.get(frame.0).unwrap();
         stack.extend(edges.iter().map(|(next, weight)| (next.as_str(), frame.1 * weight)));
-        weight_sum = weight_sum + frame.1;
+        visited.insert(frame.0);
+        cumulative_weights = cumulative_weights + frame.1;
     }
 
-    weight_sum
+    DfsResult {
+        visited: visited.len(),
+        cumulative_weight: cumulative_weights,
+    }
 }
 
 pub fn part01(filename: &Path) -> Result<String, String> {
-    let graph = parse(filename)?;
-    let reversed = reverse(&graph);
+    let reversed = reverse(&parse(filename)?);
 
-    let my_bags = "shiny gold";
+    let bag = "shiny gold";
     Ok(format!(
         "Bags that eventually contains {} bags: {}",
-        my_bags,
-        dfs(my_bags, &reversed)
+        bag,
+        dfs(bag, &reversed).visited
     ))
 }
 
 pub fn part02(filename: &Path) -> Result<String, String> {
     let graph = parse(filename)?;
 
-    let my_bags = "shiny gold";
+    let bag = "shiny gold";
     Ok(format!(
         "{} bags contains a total of other bags: {}",
-        my_bags,
-        cumulative_weight_sum(my_bags, &graph)
+        bag,
+        dfs(bag, &graph).cumulative_weight
     ))
 }
