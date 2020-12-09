@@ -13,7 +13,7 @@ enum Instruction {
 
 fn parse(filename: &Path) -> Result<Vec<Instruction>, String> {
     fs::read_to_string(filename)
-        .map_err(|err| format!("Failed to read data for day 06: {}", err))?
+        .map_err(|err| format!("Failed to read data for day 08: {}", err))?
         .lines()
         .map(|line| match &line[..3] {
             "acc" => {

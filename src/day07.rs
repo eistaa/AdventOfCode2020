@@ -11,7 +11,7 @@ fn parse(filename: &Path) -> Result<Graph, String> {
     let re = Regex::new(r"^(\d+)\s+(.*)\s+bags?\.?$").unwrap();
 
     Ok(fs::read_to_string(filename)
-        .map_err(|err| format!("Failed to read data for day 06: {}", err))?
+        .map_err(|err| format!("Failed to read data for day 07: {}", err))?
         .lines()
         .map(|line| {
             let [bag, contents]: [&str; 2] = line.split(" bags contain ").collect::<Vec<&str>>().try_into().unwrap();
