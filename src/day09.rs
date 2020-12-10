@@ -32,14 +32,12 @@ fn find_encryption_weakness(data: &Vec<i64>, target: i64) -> Option<i64> {
         let sum: i64 = buffer.iter().sum();
         if sum == target {
             break Some(*buffer.iter().min().unwrap() + *buffer.iter().max().unwrap());
-
         } else if sum > target {
             if buffer.is_empty() {
-                break None
+                break None;
             } else {
                 buffer.pop_front();
             }
-
         } else {
             let next = data.next();
             if next.is_none() {
