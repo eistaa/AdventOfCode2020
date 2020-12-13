@@ -106,16 +106,16 @@ impl Ship {
             Action::Right(deg) => {
                 self.waypoint = rotate_waypoint(self.waypoint, -*deg);
                 self.heading = new_heading(self.heading, -*deg)
-            },
+            }
             Action::Left(deg) => {
-                self.waypoint = rotate_waypoint( self.waypoint, *deg);
+                self.waypoint = rotate_waypoint(self.waypoint, *deg);
                 self.heading = new_heading(self.heading, *deg);
-            },
+            }
             // -----
             Action::Forward(times) => {
                 self.at.north += times * self.waypoint.north;
                 self.at.east += times * self.waypoint.east;
-            },
+            }
         }
 
         self
@@ -144,10 +144,10 @@ fn new_heading(old: i32, update: i32) -> i32 {
 }
 
 fn rotate_waypoint(mut waypoint: Point, rot: i32) -> Point {
-    for _ in 0..i32::abs(rot/90) {
+    for _ in 0..i32::abs(rot / 90) {
         let tmp = waypoint.east;
-        waypoint.east = -i32::signum(rot)*waypoint.north;
-        waypoint.north = i32::signum(rot)*tmp;
+        waypoint.east = -i32::signum(rot) * waypoint.north;
+        waypoint.north = i32::signum(rot) * tmp;
     }
 
     waypoint
