@@ -9,7 +9,7 @@ struct Notes {
 }
 
 fn parse(filename: &Path) -> Result<Notes, String> {
-    let mut lines: Vec<String> = fs::read_to_string(filename)
+    let lines: Vec<String> = fs::read_to_string(filename)
         .map_err(|err| format!("Failed to read data for day 13: {}", err))?
         .lines()
         .take(2)
@@ -24,7 +24,7 @@ fn parse(filename: &Path) -> Result<Notes, String> {
             .ok_or("Failed to read busses".to_string())?
             .split(",")
             .enumerate()
-            .filter(|&(i, d)| d != "x")
+            .filter(|&(_, d)| d != "x")
             .map(|(i, d)| {
                 let bus = i64::from_str(d).map_err(|err| format!("Failed to parse bus: {}", err))?;
                 Ok((bus, bus - (i as i64)))
@@ -60,8 +60,8 @@ pub fn part02(filename: &Path) -> Result<String, String> {
     let notes = dbg!(parse(filename)?);
 
     dbg!(chinese_remainder(
-        &notes.departures.iter().map(|(m, r)| *r).collect::<Vec<i64>>(),
-        &notes.departures.iter().map(|(m, r)| *m).collect::<Vec<i64>>()
+        &notes.departures.iter().map(|(_, r)| *r).collect::<Vec<i64>>(),
+        &notes.departures.iter().map(|(m, _)| *m).collect::<Vec<i64>>()
     ));
 
     Ok("".to_string())
