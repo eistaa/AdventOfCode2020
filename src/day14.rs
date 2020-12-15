@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::str::FromStr;
+use std::time::Instant;
 
 #[derive(Clone, Debug)]
 struct MaskedValue {
@@ -92,28 +93,32 @@ pub fn part02(filename: &Path) -> Result<String, String> {
         let ones = floatmask.count_ones(); // number of floating bits
 
         // for each possible bit combination for the floating bits
-        for pattern in 0..usize::pow(2, ones) {
-            let mut floating = 0; // accumulator for the floating bit pattern
-            let mut i = 0; // counter for the floating bit
-                           // for each bit in the bit combination
-            for bit in 0..ones {
+        for mut pattern in 0..usize::pow(2, ones) {
+            let mut floating = mv.value; // accumulator for the floating bit pattern
+            let mut i = 1; // counter for the floating bit
+
+            // for each bit in the bit combination
+            while pattern != 0 {
                 // locate the bit to set
-                while i <= 36 {
-                    i += 1;
-                    if floatmask & (1 << (i - 1)) > 0 {
+                while i != (1usize << 36) {
+                    if floatmask & i > 0 {
                         // found the bit, retrieve the correct bit and from pattern and set it in floating
-                        floating = floating | ((pattern & (1 << bit)) >> bit) << (i - 1);
+                        floating |= (pattern & 1) << i.trailing_zeros();
+                        i <<= 1;
                         break;
                     }
+                    i <<= 1;
                 }
+                pattern >>= 1;
             }
 
+            let tmp2 = mv.mask & !mv.value;
             for (addr, val) in mv.values.iter() {
                 // rules, the rules correspond to each of the three or-ed parts:
                 //  1. where the mask bit is 0: pass through the address bit
                 //  2. where the mask bit is 1: set address bit to 1
                 //  3. where the mask bit is floating: use the floating bit-pattern value
-                memory.insert((addr & (mv.mask & !mv.value)) | mv.value | floating, *val);
+                memory.insert((addr & tmp2) | floating, *val);
             }
         }
     }
