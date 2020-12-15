@@ -1,8 +1,8 @@
 use regex::Regex;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::str::FromStr;
-use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 struct MaskedValue {
@@ -88,24 +88,21 @@ pub fn part02(filename: &Path) -> Result<String, String> {
 
     let mut memory = HashMap::new();
     for mv in program.iter() {
-        let floatmask = !mv.mask & !mv.value; // 1 where there is a floating value
-        let ones = floatmask.count_ones(); // number of floating values
+        let floatmask = !mv.mask & !mv.value; // 1 where there is a floating bit
+        let ones = floatmask.count_ones(); // number of floating bits
 
         // for each possible bit combination for the floating bits
         for pattern in 0..usize::pow(2, ones) {
             let mut floating = 0; // accumulator for the floating bit pattern
             let mut i = 0; // counter for the floating bit
-            // for each bit in the bit combination
+                           // for each bit in the bit combination
             for bit in 0..ones {
                 // locate the bit to set
-                loop {
+                while i <= 36 {
                     i += 1;
-                    if i > 36 {
-                        // only 36-bit addresses
-                        break
-                    } else if floatmask & (1 << (i-1)) > 0 {
+                    if floatmask & (1 << (i - 1)) > 0 {
                         // found the bit, retrieve the correct bit and from pattern and set it in floating
-                        floating = floating | ((pattern & (1 << bit)) >> bit) << (i-1);
+                        floating = floating | ((pattern & (1 << bit)) >> bit) << (i - 1);
                         break;
                     }
                 }
@@ -113,9 +110,9 @@ pub fn part02(filename: &Path) -> Result<String, String> {
 
             for (addr, val) in mv.values.iter() {
                 // rules, the rules correspond to each of the three or-ed parts:
-                //  1. where the mask is 0: pass through the address bit
-                //  2. where the mask is 1: set address to 1
-                //  3. where the mask is floating: use the floating bitpattern
+                //  1. where the mask bit is 0: pass through the address bit
+                //  2. where the mask bit is 1: set address bit to 1
+                //  3. where the mask bit is floating: use the floating bit-pattern value
                 memory.insert((addr & (mv.mask & !mv.value)) | mv.value | floating, *val);
             }
         }
