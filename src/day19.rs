@@ -3,6 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 
+use itertools::Itertools;
 use regex::Regex;
 
 #[derive(Copy, Clone, Debug)]
@@ -12,6 +13,8 @@ enum Rulespec {
     Chain(u8, u8),
     Either(u8, u8),
     EitherChain((u8, u8), (u8, u8)),
+    EitherChain12((u8,), (u8, u8)),
+    EitherChain23((u8, u8), (u8, u8, u8)),
 }
 
 impl Rulespec {
@@ -168,14 +171,122 @@ fn rulemap_to_re(start: u8, map: &HashMap<u8, Rulespec>) -> Result<String, Strin
                     );
                 }
             }
+            (id, Rulespec::EitherChain12((r11,), (r21, r22))) => {
+                if !processed.contains_key(&r11)
+                    || !processed.contains_key(&r21)
+                    || (!processed.contains_key(&r22) && *r22 != id)
+                {
+                    if !processed.contains_key(&r11) {
+                        stack.push((*r11, map.get(r11).ok_or(format!("Missing rule {}", r11))?))
+                    }
+                    if !processed.contains_key(&r21) {
+                        stack.push((*r21, map.get(r21).ok_or(format!("Missing rule {}", r21))?))
+                    }
+                    if !processed.contains_key(&r22) && *r22 != id {
+                        stack.push((*r22, map.get(r22).ok_or(format!("Missing rule {}", r22))?))
+                    }
+                } else {
+                    stack.pop();
+                    if *r22 == id {
+                        processed.insert(
+                            id,
+                            format!(
+                                "({r21}+{r11}|{r11})",
+                                r11 = processed.get(r11).unwrap(),
+                                r21 = processed.get(r21).unwrap(),
+                            ),
+                        );
+                    } else {
+                        processed.insert(
+                            id,
+                            format!(
+                                "({r11}|{r21}{r22})",
+                                r11 = processed.get(r11).unwrap(),
+                                r21 = processed.get(r21).unwrap(),
+                                r22 = processed.get(r22).unwrap()
+                            ),
+                        );
+                    }
+                }
+            }
+            (id, Rulespec::EitherChain23((r11, r12), (r21, r22, r23))) => {
+                if !processed.contains_key(&r11)
+                    || (!processed.contains_key(&r12) && *r12 != id)
+                    || !processed.contains_key(&r21)
+                    || (!processed.contains_key(&r22) && *r22 != id)
+                    || (!processed.contains_key(&r23) && *r23 != id)
+                {
+                    if !processed.contains_key(&r11) {
+                        stack.push((*r11, map.get(r11).ok_or(format!("Missing rule {}", r11))?))
+                    }
+                    if !processed.contains_key(&r12) && *r12 != id {
+                        stack.push((*r12, map.get(r12).ok_or(format!("Missing rule {}", r12))?))
+                    }
+                    if !processed.contains_key(&r21) {
+                        stack.push((*r21, map.get(r21).ok_or(format!("Missing rule {}", r21))?))
+                    }
+                    if !processed.contains_key(&r22) && *r22 != id {
+                        stack.push((*r22, map.get(r22).ok_or(format!("Missing rule {}", r22))?))
+                    }
+                    if !processed.contains_key(&r23) && *r23 != id {
+                        stack.push((*r23, map.get(r23).ok_or(format!("Missing rule {}", r23))?))
+                    }
+                } else {
+                    stack.pop();
+                    if *r22 == id {
+                        let r11 = processed.get(r11).unwrap();
+                        let r12 = processed.get(r12).unwrap();
+                        let r21 = processed.get(r21).unwrap();
+                        let r23 = processed.get(r23).unwrap();
+                        processed.insert(
+                            id,
+                            format!(
+                                "(({recursive})|{r11}{r12})",
+                                r11 = r11,
+                                r12 = r12,
+
+                                // =====================================================================
+                                // NB: This generates a regex handling recursive patterns at most 9 deep
+                                // =====================================================================
+
+                                recursive = (0..9)
+                                    .map(|i| format!(
+                                        "{r21}{{{rep}}}{r11}{r12}{r23}{{{rep}}}",
+                                        r21 = r21,
+                                        r23 = r23,
+                                        r11 = r11,
+                                        r12 = r12,
+                                        rep = i,
+                                    ))
+                                    .join("|"),
+                            ),
+                        );
+                    } else {
+                        processed.insert(
+                            id,
+                            format!(
+                                "({r11}{r12}|{r21}{r22}{r23})",
+                                r11 = processed.get(r11).unwrap(),
+                                r12 = processed.get(r12).unwrap(),
+                                r21 = processed.get(r21).unwrap(),
+                                r22 = processed.get(r22).unwrap(),
+                                r23 = processed.get(r23).unwrap(),
+                            ),
+                        );
+                    }
+                }
+            }
         }
     }
 
     Ok(format!("^{}$", processed.get(&start).unwrap().to_owned()))
 }
 
+// fn recursive(text: &str, cursor: u8, rule: u8, map: &HashMap<u8, Rulespec>) -> bool {}
+
 pub fn part01(filename: &Path) -> Result<String, String> {
     let (rulemap, text) = parse(filename)?;
+
     let re = Regex::new(&rulemap_to_re(0, &rulemap)?).map_err(|err| format!("Generated invalid regex: {}", err))?;
 
     Ok(format!(
@@ -187,5 +298,13 @@ pub fn part01(filename: &Path) -> Result<String, String> {
 pub fn part02(filename: &Path) -> Result<String, String> {
     let (mut rulemap, text) = parse(filename)?;
 
-    Ok(format!(""))
+    rulemap.insert(8, Rulespec::EitherChain12((42,), (42, 8)));
+    rulemap.insert(11, Rulespec::EitherChain23((42, 31), (42, 11, 31)));
+
+    let re = Regex::new(&rulemap_to_re(0, &rulemap)?).map_err(|err| format!("Generated invalid regex: {}", err))?;
+
+    Ok(format!(
+        "Matching lines: {}",
+        text.iter().filter(|line| re.is_match(line)).map(|line| line).count()
+    ))
 }
