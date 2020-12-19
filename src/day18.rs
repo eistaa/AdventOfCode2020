@@ -28,7 +28,7 @@ impl Token {
 
 fn parse(filename: &Path) -> Result<Vec<Vec<Token>>, String> {
     fs::read_to_string(filename)
-        .map_err(|err| format!("Failed to read data for day 17: {}", err))?
+        .map_err(|err| format!("Failed to read data for day 18: {}", err))?
         .lines()
         .map(|line| {
             let mut nesting = 0;
@@ -122,7 +122,7 @@ where
                         match ops.pop().unwrap() {
                             Token::Add => queue.push(Token::Number(rhs.value() + lhs.value())),
                             Token::Mul => queue.push(Token::Number(rhs.value() * lhs.value())),
-                            _ => panic!("Malformed output queue")
+                            _ => panic!("Malformed output queue"),
                         }
                     } else {
                         break;
@@ -140,7 +140,7 @@ where
                         match ops.pop().unwrap() {
                             Token::Add => queue.push(Token::Number(rhs.value() + lhs.value())),
                             Token::Mul => queue.push(Token::Number(rhs.value() * lhs.value())),
-                            _ => panic!("Malformed output queue")
+                            _ => panic!("Malformed output queue"),
                         }
                     } else {
                         ops.pop();
@@ -158,7 +158,7 @@ where
         match ops.pop().unwrap() {
             Token::Add => queue.push(Token::Number(rhs.value() + lhs.value())),
             Token::Mul => queue.push(Token::Number(rhs.value() * lhs.value())),
-            _ => panic!("Malformed output queue")
+            _ => panic!("Malformed output queue"),
         }
     }
 
