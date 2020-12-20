@@ -5,10 +5,12 @@ use std::fmt;
 use std::fs;
 use std::path::Path;
 use std::str::FromStr;
+use std::iter::FromIterator;
 
 const TILE_DIM: usize = 10;
-const FILLED_CELL: char = '#';
 const EMPTY_CELL: char = '.';
+const SEA_CELL: char = '#';
+const MONSTER_CELL: char = 'O';
 
 #[derive(Copy, Clone, Debug)]
 enum Transform {
@@ -16,9 +18,41 @@ enum Transform {
     Rot,
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+enum Cell {
+    Empty,
+    Sea,
+    Monster,
+}
+
+impl Cell {
+    fn try_new(c: char) -> Result<Self, String> {
+        match c {
+            EMPTY_CELL => Ok(Cell::Empty),
+            SEA_CELL => Ok(Cell::Sea),
+            MONSTER_CELL => Ok(Cell::Monster),
+            _ => Err(format!("Unknown cell spec: {}", c)),
+        }
+    }
+}
+
+impl fmt::Display for Cell {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Empty => EMPTY_CELL,
+                Self::Sea => SEA_CELL,
+                Self::Monster => MONSTER_CELL,
+            }
+        )
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Tile {
-    pub grid: [bool; TILE_DIM * TILE_DIM],
+    pub grid: [Cell; TILE_DIM * TILE_DIM],
     pub id: u64,
 }
 
@@ -28,13 +62,13 @@ impl Tile {
             Err(format!("Only {0}x{0} tiles allowed: wrong number of rows", TILE_DIM))?
         }
 
-        let mut grid = [false; TILE_DIM * TILE_DIM];
+        let mut grid = [Cell::Empty; TILE_DIM * TILE_DIM];
         for (y, &line) in lines.iter().enumerate() {
             if line.len() != TILE_DIM {
                 Err(format!("Only {0}x{0} tiles allowed: wrong number of columns", TILE_DIM))?
             }
             for (x, c) in line.chars().enumerate() {
-                grid[TILE_DIM * y + x] = c == FILLED_CELL;
+                grid[TILE_DIM * y + x] = Cell::try_new(c)?;
             }
         }
 
@@ -43,41 +77,41 @@ impl Tile {
 
     // edges are directed clockwise
 
-    fn edge_top(&self) -> [bool; TILE_DIM] {
+    fn edge_top(&self) -> [Cell; TILE_DIM] {
         self.grid[0..TILE_DIM].try_into().unwrap()
     }
-    fn edge_bottom(&self) -> [bool; TILE_DIM] {
-        let mut edge: [bool; TILE_DIM] = self.grid[((TILE_DIM - 1) * TILE_DIM)..(TILE_DIM * TILE_DIM)]
+    fn edge_bottom(&self) -> [Cell; TILE_DIM] {
+        let mut edge: [Cell; TILE_DIM] = self.grid[((TILE_DIM - 1) * TILE_DIM)..(TILE_DIM * TILE_DIM)]
             .try_into()
             .unwrap();
         edge.reverse();
         edge
     }
-    fn edge_left(&self) -> [bool; TILE_DIM] {
-        let mut edge: [bool; TILE_DIM] = self
+    fn edge_left(&self) -> [Cell; TILE_DIM] {
+        let mut edge: [Cell; TILE_DIM] = self
             .grid
             .iter()
             .step_by(TILE_DIM)
             .copied()
-            .collect::<Vec<bool>>()
+            .collect::<Vec<Cell>>()
             .try_into()
             .unwrap();
         edge.reverse();
         edge
     }
-    fn edge_right(&self) -> [bool; TILE_DIM] {
+    fn edge_right(&self) -> [Cell; TILE_DIM] {
         self.grid
             .iter()
             .skip(TILE_DIM - 1)
             .step_by(TILE_DIM)
             .copied()
-            .collect::<Vec<bool>>()
+            .collect::<Vec<Cell>>()
             .try_into()
             .unwrap()
     }
 
     fn transform(&self, op: Transform) -> Self {
-        let mut grid = [false; TILE_DIM * TILE_DIM];
+        let mut grid = [Cell::Empty; TILE_DIM * TILE_DIM];
         for y in 0..TILE_DIM {
             for x in 0..TILE_DIM {
                 match op {
@@ -100,7 +134,7 @@ impl fmt::Display for Tile {
                 .map(|y| {
                     self.grid[(TILE_DIM * y)..(TILE_DIM * (y + 1))]
                         .iter()
-                        .map(|&cell| if cell { FILLED_CELL } else { EMPTY_CELL })
+                        .map(|cell| cell.to_string())
                         .collect::<String>()
                 })
                 .join("\n")
@@ -124,9 +158,10 @@ fn parse(filename: &Path) -> Result<HashMap<u64, Tile>, String> {
 
 #[derive(Clone, Debug)]
 struct Classification {
-    pub corners: [Tile; 4],
-    pub edges: Vec<Tile>,
-    pub interior: Vec<Tile>,
+    pub corners: HashMap<u64, Tile>,
+    pub edges: HashMap<u64, Tile>,
+    pub interior: HashMap<u64, Tile>,
+    pub tile_pairs: HashMap<u64, HashSet<u64>>,
 }
 
 fn classify_tiles(tiles: &HashMap<u64, Tile>) -> Result<Classification, String> {
@@ -161,29 +196,35 @@ fn classify_tiles(tiles: &HashMap<u64, Tile>) -> Result<Classification, String> 
         edges.entry(id).and_modify(|v| *v += 1).or_insert(1);
     }
 
+    let mut tile_pairs: HashMap<_, HashSet<u64>> = HashMap::new();
+    for ids in edge_counts.values() {
+        for &id in ids.iter() {
+            tile_pairs.entry(id).or_insert(HashSet::new()).extend(ids.iter().filter(|&&i| i != id));
+        }
+    }
+
     Ok(Classification {
         corners: edges
             .iter()
-            .filter(|(_, &v)| v == 4)
-            .map(|(k, _)| tiles.get(k).unwrap())
-            .cloned()
-            .collect::<Vec<Tile>>()
-            .try_into()
-            .map_err(|_| format!("Didn't find 4 corners"))?,
+            .filter(|(_, &v)| v == 4) // 2 normal and 2 flipped edges
+            .map(|(&k, _)| (k, tiles.get(&k).unwrap().clone()))
+            .collect(),
         edges: edges
             .iter()
-            .filter(|(_, &v)| v == 2)
-            .map(|(k, _)| tiles.get(k).unwrap())
-            .cloned()
+            .filter(|(_, &v)| v == 2) // 1 normal and 1 flipped edge
+            .map(|(&k, _)| (k, tiles.get(&k).unwrap().clone()))
             .collect(),
         interior: tiles
             .iter()
             .filter(|(k, _)| !edges.contains_key(k))
-            .map(|(_, v)| v)
-            .cloned()
+            .map(|(&k, _)| (k, tiles.get(&k).unwrap().clone()))
             .collect(),
+        tile_pairs,
     })
-    // }
+}
+
+fn assemble(data: &Classification) -> () {
+
 }
 
 pub fn part01(filename: &Path) -> Result<String, String> {
@@ -192,12 +233,15 @@ pub fn part01(filename: &Path) -> Result<String, String> {
 
     Ok(format!(
         "Product of corner tile ids: {}",
-        classification.corners.iter().map(|tile| tile.id).product::<u64>()
+        classification.corners.keys().product::<u64>()
     ))
 }
 
 pub fn part02(filename: &Path) -> Result<String, String> {
     let tiles = parse(filename)?;
+    let classification = classify_tiles(&tiles)?;
+
+    dbg!(classification.tile_pairs);
 
     Ok(format!(""))
 }
