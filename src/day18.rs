@@ -11,13 +11,6 @@ enum Token {
 }
 
 impl Token {
-    fn is_number(&self) -> bool {
-        match self {
-            Self::Number(_) => true,
-            _ => false,
-        }
-    }
-
     fn value(&self) -> i64 {
         match self {
             Self::Number(v) => *v,
@@ -166,7 +159,7 @@ where
 }
 
 pub fn part01(filename: &Path) -> Result<String, String> {
-    let mut expressions = parse(filename)?;
+    let expressions = parse(filename)?;
 
     Ok(format!(
         "Sum of all expressions: {}",
@@ -184,7 +177,7 @@ pub fn part01(filename: &Path) -> Result<String, String> {
 }
 
 pub fn part02(filename: &Path) -> Result<String, String> {
-    let mut expressions = parse(filename)?;
+    let expressions = parse(filename)?;
 
     Ok(format!(
         "Sum of all expressions: {}",

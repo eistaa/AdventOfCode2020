@@ -234,21 +234,19 @@ fn rulemap_to_re(start: u8, map: &HashMap<u8, Rulespec>) -> Result<String, Strin
                 } else {
                     stack.pop();
                     if *r22 == id {
-                        let r11 = processed.get(r11).unwrap();
-                        let r12 = processed.get(r12).unwrap();
-                        let r21 = processed.get(r21).unwrap();
-                        let r23 = processed.get(r23).unwrap();
+                        let r11 = processed.get(r11).unwrap().clone();
+                        let r12 = processed.get(r12).unwrap().clone();
+                        let r21 = processed.get(r21).unwrap().clone();
+                        let r23 = processed.get(r23).unwrap().clone();
                         processed.insert(
                             id,
                             format!(
                                 "(({recursive})|{r11}{r12})",
                                 r11 = r11,
                                 r12 = r12,
-
                                 // =====================================================================
                                 // NB: This generates a regex handling recursive patterns at most 9 deep
                                 // =====================================================================
-
                                 recursive = (0..9)
                                     .map(|i| format!(
                                         "{r21}{{{rep}}}{r11}{r12}{r23}{{{rep}}}",
