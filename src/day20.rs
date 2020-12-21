@@ -134,6 +134,13 @@ impl Tile {
 
         Tile { id: self.id, grid }
     }
+
+    fn row_str(&self, row: usize) -> String {
+        self.grid[(TILE_DIM * row)..(TILE_DIM * (row + 1))]
+            .iter()
+            .map(|cell| cell.to_string())
+            .join("")
+    }
 }
 
 impl fmt::Display for Tile {
@@ -244,8 +251,7 @@ fn classify_tiles(tiles: &HashMap<u64, Tile>) -> Result<Classification, String> 
     })
 }
 
-fn assemble(tiles: &HashMap<u64, Tile>, data: &Classification) -> () {
-    #[derive(Debug, Clone)]
+fn assemble(tiles: &HashMap<u64, Tile>, data: &Classification) -> Vec<String> {
     struct Carrier {
         tile: Tile,
         up: Option<u64>,
@@ -265,9 +271,7 @@ fn assemble(tiles: &HashMap<u64, Tile>, data: &Classification) -> () {
         for &op in &[Pass, Flip] {
             tile = tile.transform(op);
             for &op in &[Pass, Rot, Rot, Rot] {
-                // println!("{}\n", tile.to_string());
                 tile = tile.transform(op);
-                // println!("{}\n----------\n", tile.to_string());
                 if &tile.edge(dir) == edge {
                     return Some(tile);
                 }
@@ -280,6 +284,7 @@ fn assemble(tiles: &HashMap<u64, Tile>, data: &Classification) -> () {
     let mut fixed: HashMap<u64, Carrier> = HashMap::new();
     let mut queue = VecDeque::from_iter(tiles.keys().copied());
 
+    // find assembly of tiles
     while !queue.is_empty() {
         let mut carrier = Carrier {
             tile: tiles.get(&queue.pop_front().unwrap()).unwrap().clone(),
@@ -337,7 +342,29 @@ fn assemble(tiles: &HashMap<u64, Tile>, data: &Classification) -> () {
         }
     }
 
-    dbg!(fixed);
+    let mut assembly = Vec::new();
+    let mut tile_id = data
+        .corners
+        .iter()
+        .map(|id| fixed.get(id).unwrap())
+        .filter(|c| c.up.is_none() && c.left.is_none())
+        .map(|c| c.tile.id)
+        .next();
+    while tile_id.is_some() {
+        let leftmost_id = tile_id;
+        for row in 1..(TILE_DIM - 1) {
+            assembly.push(String::new());
+            while tile_id.is_some() {
+                let tile = fixed.get(&tile_id.unwrap()).unwrap();
+                assembly.last_mut().unwrap().push_str(&tile.tile.row_str(row)[1..(TILE_DIM-1)]);
+                tile_id = tile.right;
+            }
+            tile_id = leftmost_id;
+        }
+        tile_id = fixed.get(&tile_id.unwrap()).unwrap().down;
+    }
+
+    assembly
 }
 
 pub fn part01(filename: &Path) -> Result<String, String> {
@@ -354,7 +381,10 @@ pub fn part02(filename: &Path) -> Result<String, String> {
     let tiles = parse(filename)?;
     let classification = classify_tiles(&tiles)?;
 
-    assemble(&tiles, &classification);
+    let assembly = assemble(&tiles, &classification);
+    for line in assembly {
+        println!("{}", line);
+    }
 
     Ok(format!(""))
 }
