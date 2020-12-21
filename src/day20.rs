@@ -32,7 +32,6 @@ enum Direction {
 enum Cell {
     Empty,
     Sea,
-    Monster,
 }
 
 impl Cell {
@@ -40,7 +39,6 @@ impl Cell {
         match c {
             EMPTY_CELL => Ok(Cell::Empty),
             SEA_CELL => Ok(Cell::Sea),
-            MONSTER_CELL => Ok(Cell::Monster),
             _ => Err(format!("Unknown cell spec: {}", c)),
         }
     }
@@ -54,7 +52,6 @@ impl fmt::Display for Cell {
             match self {
                 Self::Empty => EMPTY_CELL,
                 Self::Sea => SEA_CELL,
-                Self::Monster => MONSTER_CELL,
             }
         )
     }
@@ -377,52 +374,79 @@ fn scan_for_monsters(mut assembly: Vec<String>) -> String {
     let re_2 = Regex::new(r"#(.{4})##(.{4})##(.{4})###").unwrap();
     let re_3 = Regex::new(r"(.)#(.{2})#(.{2})#(.{2})#(.{2})#(.{2})#(.{3})").unwrap();
 
+    let repl_1 = format!("${{1}}{0}${{2}}", MONSTER_CELL);
+    let repl_2 = format!("{0}${{1}}{0}{0}${{2}}{0}{0}${{3}}{0}{0}{0}", MONSTER_CELL);
+    let repl_3 = format!(
+        "${{1}}{0}${{2}}{0}${{3}}{0}${{4}}{0}${{5}}{0}${{6}}{0}${{7}}",
+        MONSTER_CELL
+    );
+
     let mut with_monsters = Vec::new();
     let mut matched = false;
-    for _ in 0..4 {
-        with_monsters.clear();
-        let mut line_1 = assembly.get(0).unwrap().clone();
-        let mut line_2 = assembly.get(1).unwrap().clone();
+    for _ in 0..2 {
+        for _ in 0..4 {
+            with_monsters.clear();
+            let mut line_1 = assembly.get(0).unwrap().clone();
+            let mut line_2 = assembly.get(1).unwrap().clone();
 
-        for row in 2..assembly.len() {
-            let mut line_3 = assembly.get(row).unwrap().clone();
-            let mut at = 0;
-            while at + monster_len < line_2.len() {
-                if let Some(res_2) = re_2.find_at(&line_2, at) {
-                    let res_1 = re_1.find_at(&line_1, res_2.start());
-                    let res_3 = re_3.find_at(&line_3, res_2.start());
+            for row in 2..assembly.len() {
+                let mut line_3 = assembly.get(row).unwrap().clone();
+                let mut at = 0;
+                while at + monster_len < line_2.len() {
+                    if let Some(res_2) = re_2.find_at(&line_2, at) {
+                        let res_1 = re_1.find_at(&line_1, res_2.start());
+                        let res_3 = re_3.find_at(&line_3, res_2.start());
 
-                    if res_1.is_some()
-                        && res_1.unwrap().start() == res_2.start()
-                        && res_3.is_some()
-                        && res_3.unwrap().start() == res_2.start()
-                    {
-                        let range = res_2.start()..res_2.end();
-                        line_1.replace_range(range.clone(), re_1.replace(&line_1[range.clone()].to_owned(), "${1}O${2}").as_ref());
-                        line_2.replace_range(range.clone(), re_2.replace(&line_2[range.clone()].to_owned(), "O${1}OO${2}OO${3}OOO").as_ref());
-                        line_3.replace_range(range.clone(), re_3.replace(&line_3[range.clone()].to_owned(), "${1}O${2}O${3}O${4}O${5}O${6}O${7}").as_ref());
+                        if res_1.is_some()
+                            && res_1.unwrap().start() == res_2.start()
+                            && res_3.is_some()
+                            && res_3.unwrap().start() == res_2.start()
+                        {
+                            let range = res_2.start()..res_2.end();
+                            line_1.replace_range(
+                                range.clone(),
+                                re_1.replace(&line_1[range.clone()].to_owned(), repl_1.as_str())
+                                    .as_ref(),
+                            );
+                            line_2.replace_range(
+                                range.clone(),
+                                re_2.replace(&line_2[range.clone()].to_owned(), repl_2.as_str())
+                                    .as_ref(),
+                            );
+                            line_3.replace_range(
+                                range.clone(),
+                                re_3.replace(&line_3[range.clone()].to_owned(), repl_3.as_str())
+                                    .as_ref(),
+                            );
 
-                        matched = true;
-                        at = range.end;
+                            matched = true;
+                            at = range.end;
+                        } else {
+                            at = res_2.start() + 1;
+                        }
                     } else {
-                        at = res_2.start() + 1;
+                        break;
                     }
-                } else {
-                    break;
                 }
-            }
 
+                with_monsters.push(line_1);
+                line_1 = line_2;
+                line_2 = line_3;
+            }
             with_monsters.push(line_1);
-            line_1 = line_2;
-            line_2 = line_3;
+            with_monsters.push(line_2);
+
+            if matched {
+                break;
+            } else {
+                assembly = rotate(assembly);
+            }
         }
-        with_monsters.push(line_1);
-        with_monsters.push(line_2);
 
         if matched {
             break;
         } else {
-            assembly = rotate(assembly);
+            assembly = flip(assembly);
         }
     }
 
@@ -444,6 +468,15 @@ fn rotate(assembly: Vec<String>) -> Vec<String> {
     lines
 }
 
+fn flip(assembly: Vec<String>) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for line in assembly.into_iter() {
+        lines.push(line.chars().rev().join(""));
+    }
+
+    lines
+}
+
 pub fn part01(filename: &Path) -> Result<String, String> {
     let tiles = parse(filename)?;
     let classification = classify_tiles(&tiles)?;
@@ -456,10 +489,10 @@ pub fn part01(filename: &Path) -> Result<String, String> {
 
 pub fn part02(filename: &Path) -> Result<String, String> {
     let tiles = parse(filename)?;
-    let classification = classify_tiles(&tiles)?;
+    let assembly = scan_for_monsters(assemble(&tiles, &classify_tiles(&tiles)?));
 
-    let assembly = scan_for_monsters(assemble(&tiles, &classification));
-    // println!("{}", assembly);
-
-    Ok(format!("{}", assembly.chars().filter(|&c| c == '#').count()))
+    Ok(format!(
+        "Number of non-monster rough water cells: {}",
+        assembly.chars().filter(|&c| c == SEA_CELL).count()
+    ))
 }
