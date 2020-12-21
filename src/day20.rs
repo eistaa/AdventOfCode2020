@@ -1,11 +1,11 @@
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::convert::TryInto;
 use std::fmt;
 use std::fs;
+use std::iter::FromIterator;
 use std::path::Path;
 use std::str::FromStr;
-use std::iter::FromIterator;
 
 const TILE_DIM: usize = 10;
 const EMPTY_CELL: char = '.';
@@ -16,6 +16,15 @@ const MONSTER_CELL: char = 'O';
 enum Transform {
     Flip,
     Rot,
+    Pass,
+}
+
+#[derive(Debug, Copy, Clone)]
+enum Direction {
+    Top,
+    Bottom,
+    Left,
+    Right,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -50,7 +59,7 @@ impl fmt::Display for Cell {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct Tile {
     pub grid: [Cell; TILE_DIM * TILE_DIM],
     pub id: u64,
@@ -75,29 +84,23 @@ impl Tile {
         Ok(Tile { id, grid })
     }
 
-    // edges are directed clockwise
-
     fn edge_top(&self) -> [Cell; TILE_DIM] {
         self.grid[0..TILE_DIM].try_into().unwrap()
     }
     fn edge_bottom(&self) -> [Cell; TILE_DIM] {
-        let mut edge: [Cell; TILE_DIM] = self.grid[((TILE_DIM - 1) * TILE_DIM)..(TILE_DIM * TILE_DIM)]
+        self.grid[((TILE_DIM - 1) * TILE_DIM)..(TILE_DIM * TILE_DIM)]
             .try_into()
-            .unwrap();
-        edge.reverse();
-        edge
+            .unwrap()
     }
     fn edge_left(&self) -> [Cell; TILE_DIM] {
-        let mut edge: [Cell; TILE_DIM] = self
+        self
             .grid
             .iter()
             .step_by(TILE_DIM)
             .copied()
             .collect::<Vec<Cell>>()
             .try_into()
-            .unwrap();
-        edge.reverse();
-        edge
+            .unwrap()
     }
     fn edge_right(&self) -> [Cell; TILE_DIM] {
         self.grid
@@ -109,6 +112,14 @@ impl Tile {
             .try_into()
             .unwrap()
     }
+    fn edge(&self, dir: Direction) -> [Cell; TILE_DIM] {
+        match dir {
+            Direction::Top => self.edge_top(),
+            Direction::Bottom => self.edge_bottom(),
+            Direction::Left => self.edge_left(),
+            Direction::Right => self.edge_right(),
+        }
+    }
 
     fn transform(&self, op: Transform) -> Self {
         let mut grid = [Cell::Empty; TILE_DIM * TILE_DIM];
@@ -117,6 +128,7 @@ impl Tile {
                 match op {
                     Transform::Flip => grid[TILE_DIM * y + x] = self.grid[TILE_DIM * y + (TILE_DIM - x - 1)],
                     Transform::Rot => grid[TILE_DIM * y + x] = self.grid[TILE_DIM * x + (TILE_DIM - y - 1)],
+                    Transform::Pass => grid[TILE_DIM * y + x] = self.grid[TILE_DIM * y + x],
                 }
             }
         }
@@ -142,6 +154,12 @@ impl fmt::Display for Tile {
     }
 }
 
+impl fmt::Debug for Tile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.id)
+    }
+}
+
 fn parse(filename: &Path) -> Result<HashMap<u64, Tile>, String> {
     fs::read_to_string(filename)
         .map_err(|err| format!("Failed to read data for day 20: {}", err))?
@@ -158,16 +176,17 @@ fn parse(filename: &Path) -> Result<HashMap<u64, Tile>, String> {
 
 #[derive(Clone, Debug)]
 struct Classification {
-    pub corners: HashMap<u64, Tile>,
-    pub edges: HashMap<u64, Tile>,
-    pub interior: HashMap<u64, Tile>,
-    pub tile_pairs: HashMap<u64, HashSet<u64>>,
+    pub corners: HashSet<u64>,
+    pub edges: HashSet<u64>,
+    pub interior: HashSet<u64>,
+    pub tile_pairs: HashMap<u64, HashMap<[Cell; TILE_DIM], u64>>,
 }
 
 fn classify_tiles(tiles: &HashMap<u64, Tile>) -> Result<Classification, String> {
     let mut edge_counts: HashMap<_, HashSet<u64>> = HashMap::new();
     for tile in tiles.values() {
-        for tile in &[tile, &tile.transform(Transform::Flip)] {
+        // rotating twice reverses all edges
+        for tile in &[tile, &tile.transform(Transform::Rot).transform(Transform::Rot)] {
             edge_counts
                 .entry(tile.edge_top())
                 .or_insert(HashSet::new())
@@ -196,10 +215,13 @@ fn classify_tiles(tiles: &HashMap<u64, Tile>) -> Result<Classification, String> 
         edges.entry(id).and_modify(|v| *v += 1).or_insert(1);
     }
 
-    let mut tile_pairs: HashMap<_, HashSet<u64>> = HashMap::new();
-    for ids in edge_counts.values() {
+    let mut tile_pairs: HashMap<_, HashMap<[Cell; TILE_DIM], u64>> = HashMap::new();
+    for (edge, ids) in edge_counts.iter() {
         for &id in ids.iter() {
-            tile_pairs.entry(id).or_insert(HashSet::new()).extend(ids.iter().filter(|&&i| i != id));
+            tile_pairs
+                .entry(id)
+                .or_insert(HashMap::new())
+                .extend(ids.iter().filter(|&&i| i != id).map(|&i| (*edge, i)));
         }
     }
 
@@ -207,24 +229,139 @@ fn classify_tiles(tiles: &HashMap<u64, Tile>) -> Result<Classification, String> 
         corners: edges
             .iter()
             .filter(|(_, &v)| v == 4) // 2 normal and 2 flipped edges
-            .map(|(&k, _)| (k, tiles.get(&k).unwrap().clone()))
+            .map(|(&k, _)| k)
             .collect(),
         edges: edges
             .iter()
             .filter(|(_, &v)| v == 2) // 1 normal and 1 flipped edge
-            .map(|(&k, _)| (k, tiles.get(&k).unwrap().clone()))
+            .map(|(&k, _)| k)
             .collect(),
         interior: tiles
             .iter()
             .filter(|(k, _)| !edges.contains_key(k))
-            .map(|(&k, _)| (k, tiles.get(&k).unwrap().clone()))
+            .map(|(&k, _)| k)
             .collect(),
         tile_pairs,
     })
 }
 
-fn assemble(data: &Classification) -> () {
+fn assemble(tiles: &HashMap<u64, Tile>, data: &Classification) -> () {
+    #[derive(Debug, Clone)]
+    struct Carrier {
+        tile: Tile,
+        up: Option<u64>,
+        down: Option<u64>,
+        left: Option<u64>,
+        right: Option<u64>,
+    }
 
+    fn orient(dir: Direction, edge: &[Cell; TILE_DIM], mut tile: Tile) -> Option<Tile> {
+        use Transform::*;
+        for &op in &[Pass, Flip] {
+            tile = tile.transform(op);
+            for &op in &[Pass, Rot, Rot, Rot] {
+                // println!("{}\n", tile.to_string());
+                tile = tile.transform(op);
+                // println!("{}\n----------\n", tile.to_string());
+                if &tile.edge(dir) == edge {
+                    return Some(tile);
+                }
+            }
+        }
+
+        None
+    }
+
+    let mut fixed: HashMap<u64, Carrier> = HashMap::new();
+    let mut queue = VecDeque::from_iter(tiles.keys().copied());
+
+    while !queue.is_empty() {
+        let tile = tiles.get(&queue.pop_front().unwrap()).unwrap();
+
+        if fixed.is_empty() {
+            fixed.insert(
+                tile.id,
+                Carrier {
+                    tile: tile.clone(),
+                    up: None,
+                    down: None,
+                    left: None,
+                    right: None,
+                },
+            );
+            continue;
+        }
+
+        for (edge, neighbor_id) in data.tile_pairs.get(&tile.id).unwrap().iter() {
+            // have we encountered the neighbor?
+            if let Some(neighbor) = fixed.get_mut(neighbor_id) {
+                // determine if we have the correctly oriented edge
+                if neighbor.up.is_none() && &neighbor.tile.edge_top() == edge {
+                    neighbor.up = Some(tile.id);
+                    let tile = orient(Direction::Bottom, edge, tile.clone()).expect("Failed to orient matched tile");
+                    fixed.insert(
+                        tile.id,
+                        Carrier {
+                            tile: tile.clone(),
+                            up: None,
+                            down: Some(*neighbor_id),
+                            left: None,
+                            right: None,
+                        },
+                    );
+                    break;
+                } else if neighbor.down.is_none() && &neighbor.tile.edge_bottom() == edge {
+                    neighbor.down = Some(tile.id);
+                    let tile = orient(Direction::Top, edge, tile.clone()).expect("Failed to orient matched tile");
+                    fixed.insert(
+                        tile.id,
+                        Carrier {
+                            tile: tile.clone(),
+                            up: Some(*neighbor_id),
+                            down: None,
+                            left: None,
+                            right: None,
+                        },
+                    );
+                    break;
+                } else if neighbor.left.is_none() && &neighbor.tile.edge_left() == edge {
+                    neighbor.left = Some(tile.id);
+                    let tile = orient(Direction::Right, edge, tile.clone()).expect("Failed to orient matched tile");
+                    fixed.insert(
+                        tile.id,
+                        Carrier {
+                            tile: tile.clone(),
+                            up: None,
+                            down: None,
+                            left: None,
+                            right: Some(*neighbor_id),
+                        },
+                    );
+                    break;
+                } else if neighbor.right.is_none() && &neighbor.tile.edge_right() == edge {
+                    neighbor.right = Some(tile.id);
+                    let tile = orient(Direction::Left, edge, tile.clone()).expect("Failed to orient matched tile");
+                    fixed.insert(
+                        tile.id,
+                        Carrier {
+                            tile: tile.clone(),
+                            up: None,
+                            down: None,
+                            left: Some(*neighbor_id),
+                            right: None,
+                        },
+                    );
+                    break;
+                }
+            }
+        }
+
+        if !fixed.contains_key(&tile.id) {
+            queue.push_back(tile.id);
+        }
+    }
+
+    dbg!(fixed);
 }
 
 pub fn part01(filename: &Path) -> Result<String, String> {
@@ -233,7 +370,7 @@ pub fn part01(filename: &Path) -> Result<String, String> {
 
     Ok(format!(
         "Product of corner tile ids: {}",
-        classification.corners.keys().product::<u64>()
+        classification.corners.iter().product::<u64>()
     ))
 }
 
@@ -241,7 +378,7 @@ pub fn part02(filename: &Path) -> Result<String, String> {
     let tiles = parse(filename)?;
     let classification = classify_tiles(&tiles)?;
 
-    dbg!(classification.tile_pairs);
+    assemble(&tiles, &classification);
 
     Ok(format!(""))
 }
