@@ -372,34 +372,43 @@ fn assemble(tiles: &HashMap<u64, Tile>, data: &Classification) -> Vec<String> {
 }
 
 fn scan_for_monsters(mut assembly: Vec<String>) -> String {
+    let monster_len = 20;
     let re_1 = Regex::new(r"(.{18})#(.)").unwrap();
     let re_2 = Regex::new(r"#(.{4})##(.{4})##(.{4})###").unwrap();
     let re_3 = Regex::new(r"(.)#(.{2})#(.{2})#(.{2})#(.{2})#(.{2})#(.{3})").unwrap();
 
     let mut with_monsters = Vec::new();
     let mut matched = false;
-    while !matched {
+    for _ in 0..4 {
         with_monsters.clear();
         let mut line_1 = assembly.get(0).unwrap().clone();
         let mut line_2 = assembly.get(1).unwrap().clone();
 
         for row in 2..assembly.len() {
             let mut line_3 = assembly.get(row).unwrap().clone();
-            if let Some(res_2) = re_2.find(&line_2) {
-                let res_1 = re_1.find_at(&line_1, res_2.start());
-                let res_3 = re_3.find_at(&line_3, res_2.start());
+            let mut at = 0;
+            while at + monster_len < line_2.len() {
+                if let Some(res_2) = re_2.find_at(&line_2, at) {
+                    let res_1 = re_1.find_at(&line_1, res_2.start());
+                    let res_3 = re_3.find_at(&line_3, res_2.start());
 
-                if res_1.is_some()
-                    && res_1.unwrap().start() == res_2.start()
-                    && res_3.is_some()
-                    && res_3.unwrap().start() == res_2.start()
-                {
-                    let range = res_2.start()..res_2.end();
-                    line_1.replace_range(range.clone(), re_1.replace(&line_1[range.clone()].to_owned(), "${1}O${2}").as_ref());
-                    line_2.replace_range(range.clone(), re_2.replace(&line_2[range.clone()].to_owned(), "O${1}OO${2}OO${3}OOO").as_ref());
-                    line_3.replace_range(range.clone(), re_3.replace(&line_3[range.clone()].to_owned(), "${1}O${2}O${3}O${4}O${5}O${6}O${7}").as_ref());
+                    if res_1.is_some()
+                        && res_1.unwrap().start() == res_2.start()
+                        && res_3.is_some()
+                        && res_3.unwrap().start() == res_2.start()
+                    {
+                        let range = res_2.start()..res_2.end();
+                        line_1.replace_range(range.clone(), re_1.replace(&line_1[range.clone()].to_owned(), "${1}O${2}").as_ref());
+                        line_2.replace_range(range.clone(), re_2.replace(&line_2[range.clone()].to_owned(), "O${1}OO${2}OO${3}OOO").as_ref());
+                        line_3.replace_range(range.clone(), re_3.replace(&line_3[range.clone()].to_owned(), "${1}O${2}O${3}O${4}O${5}O${6}O${7}").as_ref());
 
-                    matched = true;
+                        matched = true;
+                        at = range.end;
+                    } else {
+                        at = res_2.start() + 1;
+                    }
+                } else {
+                    break;
                 }
             }
 
@@ -410,7 +419,11 @@ fn scan_for_monsters(mut assembly: Vec<String>) -> String {
         with_monsters.push(line_1);
         with_monsters.push(line_2);
 
-        assembly = rotate(assembly);
+        if matched {
+            break;
+        } else {
+            assembly = rotate(assembly);
+        }
     }
 
     with_monsters.join("\n")
@@ -446,7 +459,7 @@ pub fn part02(filename: &Path) -> Result<String, String> {
     let classification = classify_tiles(&tiles)?;
 
     let assembly = scan_for_monsters(assemble(&tiles, &classification));
-    println!("{}", assembly);
+    // println!("{}", assembly);
 
     Ok(format!("{}", assembly.chars().filter(|&c| c == '#').count()))
 }
