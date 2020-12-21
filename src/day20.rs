@@ -93,8 +93,7 @@ impl Tile {
             .unwrap()
     }
     fn edge_left(&self) -> [Cell; TILE_DIM] {
-        self
-            .grid
+        self.grid
             .iter()
             .step_by(TILE_DIM)
             .copied()
@@ -255,6 +254,12 @@ fn assemble(tiles: &HashMap<u64, Tile>, data: &Classification) -> () {
         right: Option<u64>,
     }
 
+    impl Carrier {
+        fn is_fixed(&self) -> bool {
+            self.up.is_some() || self.down.is_some() || self.left.is_some() || self.right.is_some()
+        }
+    }
+
     fn orient(dir: Direction, edge: &[Cell; TILE_DIM], mut tile: Tile) -> Option<Tile> {
         use Transform::*;
         for &op in &[Pass, Flip] {
@@ -276,88 +281,59 @@ fn assemble(tiles: &HashMap<u64, Tile>, data: &Classification) -> () {
     let mut queue = VecDeque::from_iter(tiles.keys().copied());
 
     while !queue.is_empty() {
-        let tile = tiles.get(&queue.pop_front().unwrap()).unwrap();
+        let mut carrier = Carrier {
+            tile: tiles.get(&queue.pop_front().unwrap()).unwrap().clone(),
+            up: None,
+            down: None,
+            left: None,
+            right: None,
+        };
 
         if fixed.is_empty() {
-            fixed.insert(
-                tile.id,
-                Carrier {
-                    tile: tile.clone(),
-                    up: None,
-                    down: None,
-                    left: None,
-                    right: None,
-                },
-            );
+            fixed.insert(carrier.tile.id, carrier);
             continue;
         }
 
-        for (edge, neighbor_id) in data.tile_pairs.get(&tile.id).unwrap().iter() {
+        for (edge, neighbor_id) in data.tile_pairs.get(&carrier.tile.id).unwrap().iter() {
             // have we encountered the neighbor?
             if let Some(neighbor) = fixed.get_mut(neighbor_id) {
                 // determine if we have the correctly oriented edge
                 if neighbor.up.is_none() && &neighbor.tile.edge_top() == edge {
-                    neighbor.up = Some(tile.id);
-                    let tile = orient(Direction::Bottom, edge, tile.clone()).expect("Failed to orient matched tile");
-                    fixed.insert(
-                        tile.id,
-                        Carrier {
-                            tile: tile.clone(),
-                            up: None,
-                            down: Some(*neighbor_id),
-                            left: None,
-                            right: None,
-                        },
-                    );
-                    break;
+                    neighbor.up = Some(carrier.tile.id);
+                    if !carrier.is_fixed() {
+                        carrier.tile = orient(Direction::Bottom, edge, carrier.tile.clone())
+                            .expect("Failed to orient matched tile");
+                    }
+                    carrier.down = Some(*neighbor_id);
                 } else if neighbor.down.is_none() && &neighbor.tile.edge_bottom() == edge {
-                    neighbor.down = Some(tile.id);
-                    let tile = orient(Direction::Top, edge, tile.clone()).expect("Failed to orient matched tile");
-                    fixed.insert(
-                        tile.id,
-                        Carrier {
-                            tile: tile.clone(),
-                            up: Some(*neighbor_id),
-                            down: None,
-                            left: None,
-                            right: None,
-                        },
-                    );
-                    break;
+                    neighbor.down = Some(carrier.tile.id);
+                    if !carrier.is_fixed() {
+                        carrier.tile =
+                            orient(Direction::Top, edge, carrier.tile.clone()).expect("Failed to orient matched tile");
+                    }
+                    carrier.up = Some(*neighbor_id);
                 } else if neighbor.left.is_none() && &neighbor.tile.edge_left() == edge {
-                    neighbor.left = Some(tile.id);
-                    let tile = orient(Direction::Right, edge, tile.clone()).expect("Failed to orient matched tile");
-                    fixed.insert(
-                        tile.id,
-                        Carrier {
-                            tile: tile.clone(),
-                            up: None,
-                            down: None,
-                            left: None,
-                            right: Some(*neighbor_id),
-                        },
-                    );
-                    break;
+                    neighbor.left = Some(carrier.tile.id);
+                    if !carrier.is_fixed() {
+                        carrier.tile = orient(Direction::Right, edge, carrier.tile.clone())
+                            .expect("Failed to orient matched tile");
+                    }
+                    carrier.right = Some(*neighbor_id);
                 } else if neighbor.right.is_none() && &neighbor.tile.edge_right() == edge {
-                    neighbor.right = Some(tile.id);
-                    let tile = orient(Direction::Left, edge, tile.clone()).expect("Failed to orient matched tile");
-                    fixed.insert(
-                        tile.id,
-                        Carrier {
-                            tile: tile.clone(),
-                            up: None,
-                            down: None,
-                            left: Some(*neighbor_id),
-                            right: None,
-                        },
-                    );
-                    break;
+                    neighbor.right = Some(carrier.tile.id);
+                    if !carrier.is_fixed() {
+                        carrier.tile =
+                            orient(Direction::Left, edge, carrier.tile.clone()).expect("Failed to orient matched tile");
+                    }
+                    carrier.left = Some(*neighbor_id);
                 }
             }
         }
 
-        if !fixed.contains_key(&tile.id) {
-            queue.push_back(tile.id);
+        if carrier.is_fixed() {
+            fixed.insert(carrier.tile.id, carrier);
+        } else {
+            queue.push_back(carrier.tile.id);
         }
     }
 
